@@ -18,6 +18,7 @@ jobs:
     runs-on: ubuntu-latest
     permissions:
       issues: write
+      pull-requests: read
     steps:
       - name: attach label to issues
         uses: actions/github-script@v6
