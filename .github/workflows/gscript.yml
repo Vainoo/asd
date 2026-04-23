@@ -62,25 +62,30 @@ jobs:
         with:
           github-token: ${{ secrets.GITHUB_TOKEN }}
           script: |
-            const owner = context.repo.owner;
-            const repo = context.repo.repo;
-            const pull_number = context.payload.pull_request.number;
-            const creator = context.payload.pull_request.user.login;
-  
-            const { data: prs } = await github.rest.pulls.list({
-              owner,
-              repo,
-              state: "all",
-              per_page: 100,
-            });
-  
-            const openedByCreator = prs.filter(pr => pr.user?.login === creator);
-  
-            if (openedByCreator.length === 1) {
-              await github.rest.issues.createComment({
-                owner,
-                repo,
-                issue_number: pull_number,
-                body: `Congratulations! @${creator} you are awesome! Thanks for opening your first pull request. We'll review it as soon as possible.`,
-              });
+            // Get a list of all issues created by the PR opener
+            // See: https://octokit.github.io/rest.js/#pagination
+            const creator = context.payload.sender.login
+            const opts = github.rest.issues.listForRepo.endpoint.merge({
+              ...context.issue,
+              creator,
+              state: 'all'
+            })
+            const issues = await github.paginate(opts)
+
+            for (const issue of issues) {
+              if (issue.number === context.issue.number) {
+                continue
+              }
+
+              if (issue.pull_request) {
+                return // Creator is already a contributor.
+              }
             }
+
+            await github.rest.issues.createComment({
+              issue_number: context.issue.number,
+              owner: context.repo.owner,
+              repo: context.repo.repo,
+              body: `Congratulations! @${creator} you are awesome! Thanks for opening your first pull request. We'll review it as soon as possible.`
+            })
+
